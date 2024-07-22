@@ -1,4 +1,5 @@
 from selenium import webdriver
+from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.by import By
 from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.chrome.service import Service
@@ -18,12 +19,14 @@ class InstagramBot:
 
     def init_driver(self):
         try:
-            self.driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()))
+            chrome_options = Options()
+            chrome_options.add_argument("--start-maximized")  # Inicia em tela cheia
+            self.driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=chrome_options)
             print("ChromeDriver iniciado com sucesso.")
         except Exception as e:
             print(f"Erro ao iniciar o WebDriver: {e}")
             exit()
-
+            
     def login(self):
         self.driver.get('https://www.instagram.com/accounts/login/')
         print("Página de login carregada.")
@@ -38,12 +41,28 @@ class InstagramBot:
             password_field.send_keys(self.password)
             password_field.send_keys(Keys.RETURN)
 
-            WebDriverWait(self.driver, 20).until(EC.presence_of_element_located((By.CSS_SELECTOR, 'nav')))
+            WebDriverWait(self.driver, 20).until(EC.presence_of_element_located((By.CSS_SELECTOR, 'div')))
             print("Login bem-sucedido")
+            
+            # Clica em "Agora não" na primeira notificação
+            self.dismiss_notification()
+
+            # Clica em "Agora não" na segunda notificação
+            self.dismiss_notification()
+
         except TimeoutException:
             print("Erro: Login falhou ou a página não carregou corretamente.")
             self.driver.quit()
             exit()
+            
+    def dismiss_notification(self):
+        try:
+            WebDriverWait(self.driver, 10).until(
+                EC.element_to_be_clickable((By.XPATH, "//button[contains(text(), 'Agora não')]"))
+            ).click()
+            time.sleep(2)
+        except Exception as e:
+            print("Não foi possível encontrar o botão 'Agora não'.", e)
 
     def get_followers(self):
         # Clicar no ícone do perfil para acessar o próprio perfil
@@ -106,7 +125,8 @@ class InstagramBot:
                     print("Nenhum seguidor encontrado na página.")
                 for follower in followers:
                     try:
-                        user_name = follower.text
+                        user_name_span = follower.find_element(By.XPATH, ".//div")
+                        user_name = user_name_span.text
 
                         if user_name:
                             if user_name not in followers_names:
@@ -123,9 +143,6 @@ class InstagramBot:
             except TimeoutException:
                 print("Erro: Popup de seguidores não carregado após scroll.")
                 break
-
-        # Retornar os nomes dos seguidores
-        print(f"Total de seguidores encontrados: {len(followers_names)}")
         return followers_names
 
     def quit(self):
